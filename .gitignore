@@ -1,0 +1,4 @@
+.stack
+.cabal
+*.sublime-project
+*.sublime-workspace
