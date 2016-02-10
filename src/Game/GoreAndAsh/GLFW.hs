@@ -83,6 +83,7 @@ module Game.GoreAndAsh.GLFW(
   , mouseScrollY
   -- ** Window API
   , windowSize
+  , windowClosing
   -- ** Reexports
   , Key(..)
   , KeyState(..)

@@ -52,10 +52,14 @@ newtype GLFWT s m a = GLFWT { runGLFWT :: StateT (GLFWState s) m a }
 instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where 
   type ModuleState (GLFWT s m) = GLFWState s
   
-  runModule (GLFWT m) s = do
+  runModule (GLFWT m) s_ = do
+    liftIO $ pollEvents
+    close <- readCloseEvent s_
+    let s = s_ { glfwClose = close }
+
     ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
     bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel 
-      glfwMousePosChannel glfwWindowSizeChannel glfwScrollChannel
+      glfwMousePosChannel glfwWindowSizeChannel glfwScrollChannel glfwCloseChannel
     keys <- readAllKeys s'
     buttons <- readAllButtons s'
     mpos <- readMousePos s'
@@ -68,6 +72,7 @@ instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where
       , glfwNextState = nextState 
       , glfwWindowSize = wsize
       , glfwScroll = scroll
+      , glfwClose = False
       })
     where 
       readAllKeys GLFWState{..} = liftIO $ do
@@ -87,6 +92,9 @@ instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where
       readMouseScroll GLFWState{..} = liftIO $ 
         readAllChan glfwBufferSize glfwScrollChannel
 
+      readCloseEvent GLFWState{..} = liftIO $ 
+        readIORef glfwCloseChannel 
+
   newModuleState = do
     s <- newModuleState 
     kc <- liftIO $ newIORef []
@@ -94,6 +102,7 @@ instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where
     mpc <- liftIO $ newIORef (0, 0)
     wsc <- liftIO $ newIORef Nothing
     sch <- liftIO $ newIORef []
+    cch <- liftIO $ newIORef False
     return $ GLFWState {
         glfwNextState = s
       , glfwKeyChannel = kc
@@ -108,6 +117,8 @@ instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where
       , glfwWindowSizeChannel = wsc
       , glfwScroll = []
       , glfwScrollChannel = sch
+      , glfwClose = False
+      , glfwCloseChannel = cch
       , glfwBufferSize = 100
       }
 
@@ -123,14 +134,15 @@ instance MonadIO m => MonadIO (GLFWT s m) where
 -- | Updates handlers when current window changes
 bindWindow :: MonadIO m => Maybe Window -> Maybe Window 
   -> KeyChannel -> ButtonChannel -> MouseChannel -> WindowSizeChannel 
-  -> ScrollChannel -> m ()
-bindWindow prev cur kch mbch mpch wsch sch = unless (prev == cur) $ liftIO $ do 
+  -> ScrollChannel -> CloseChannel -> m ()
+bindWindow prev cur kch mbch mpch wsch sch cch = unless (prev == cur) $ liftIO $ do 
   whenJust prev $ \w -> do
     setKeyCallback w Nothing
     setMouseButtonCallback w Nothing
     setCursorPosCallback w Nothing
     setWindowSizeCallback w Nothing >> atomicWriteIORef wsch Nothing
     setScrollCallback w Nothing
+    setWindowCloseCallback w Nothing
   whenJust cur $ \w -> do
     bindKeyListener kch w
     bindMouseButtonListener mbch w
@@ -142,6 +154,7 @@ bindWindow prev cur kch mbch mpch wsch sch = unless (prev == cur) $ liftIO $ do
     atomicWriteIORef wsch $! Just (fromIntegral sx, fromIntegral sy)
 
     bindScrollListener sch w 
+    bindCloseCallback cch w
 
 atomicAppendIORef :: IORef [a] -> a -> IO ()
 atomicAppendIORef ref a = atomicModifyIORef ref $ \as -> (a : as, ()) 
@@ -187,6 +200,13 @@ bindScrollListener sch w = setScrollCallback w (Just f)
   where 
     f :: Window -> Double -> Double -> IO ()
     f _ !sx !sy = atomicAppendIORef sch $! (sx, sy)
+
+-- | Bind callback that passes close event to channel
+bindCloseCallback :: CloseChannel -> Window -> IO ()
+bindCloseCallback cch w = setWindowCloseCallback w (Just f)
+  where 
+    f :: Window -> IO ()
+    f _ = atomicWriteIORef cch True 
 
 -- | Helper function to read all elements from channel
 readAllChan :: Int -> IORef [a] -> IO [a]

@@ -14,6 +14,7 @@ module Game.GoreAndAsh.GLFW.State(
   , MouseChannel
   , WindowSizeChannel
   , ScrollChannel
+  , CloseChannel
   , GLFWState(..)
   ) where
 
@@ -34,6 +35,8 @@ type MouseChannel = IORef (Double, Double)
 type WindowSizeChannel = IORef (Maybe (Double, Double))
 -- | Channel to connect core and callback with mouse scrolling
 type ScrollChannel = IORef [(Double, Double)]
+-- | Channel to connect core and callback for window closing
+type CloseChannel = IORef Bool 
 
 -- | Module inner state
 --
@@ -52,6 +55,8 @@ data GLFWState s = GLFWState {
 , glfwWindowSizeChannel :: !WindowSizeChannel
 , glfwScroll :: ![(Double, Double)]
 , glfwScrollChannel :: !ScrollChannel
+, glfwClose :: !Bool
+, glfwCloseChannel :: !CloseChannel 
 , glfwBufferSize :: !Int
 } deriving (Generic)
 
@@ -70,6 +75,8 @@ instance NFData s => NFData (GLFWState s) where
     glfwWindowSizeChannel `seq`
     glfwScroll `deepseq`
     glfwScrollChannel `seq` 
+    glfwClose `seq` 
+    glfwCloseChannel `seq`
     glfwBufferSize `seq` ()
 
 instance Hashable Key 

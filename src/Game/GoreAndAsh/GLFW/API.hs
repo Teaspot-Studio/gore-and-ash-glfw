@@ -45,6 +45,7 @@ module Game.GoreAndAsh.GLFW.API(
   , mouseScrollY
   -- * Window API
   , windowSize
+  , windowClosing
   -- * Reexports
   , Key(..)
   , KeyState(..)
@@ -77,8 +78,12 @@ class Monad m => MonadGLFW m where
   mouseScrollM :: m [(Double, Double)]
   -- | Returns current size of window
   windowSizeM :: m (Maybe (Double, Double))
+  -- | Returns True when close button is pushed
+  windowClosingM :: m Bool 
   -- | Setups current window for input catch
   setCurrentWindowM :: Maybe Window -> m ()
+  -- | Returns current window 
+  getCurrentWindowM :: m (Maybe Window)
   -- | Setup maximum size of inner buffers for keys, mouse buttons
   setBufferSizeM :: Int -> m ()
 
@@ -94,6 +99,7 @@ instance {-# OVERLAPPING #-} Monad m => MonadGLFW (GLFWT s m) where
   mousePosM = GLFWT $ glfwMousePos <$> get 
   mouseScrollM = GLFWT $ glfwScroll <$> get 
   windowSizeM = GLFWT $ glfwWindowSize <$> get 
+  windowClosingM = GLFWT $ glfwClose <$> get 
 
   setCurrentWindowM w = GLFWT $ do 
     s <- get 
@@ -101,6 +107,10 @@ instance {-# OVERLAPPING #-} Monad m => MonadGLFW (GLFWT s m) where
         glfwWindow = w 
       , glfwPrevWindow = glfwWindow s 
       }
+
+  getCurrentWindowM = GLFWT $ do 
+    s <- get 
+    return . glfwWindow $! s 
 
   setBufferSizeM i = GLFWT $ do 
     s <- get 
@@ -114,7 +124,9 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFW m, MonadTrans mt) => Mona
   mousePosM = lift mousePosM
   mouseScrollM = lift mouseScrollM
   windowSizeM = lift windowSizeM
+  windowClosingM = lift windowClosingM
   setCurrentWindowM = lift . setCurrentWindowM
+  getCurrentWindowM = lift getCurrentWindowM
   setBufferSizeM = lift . setBufferSizeM
   
 -- | Produces event when key state changes
@@ -329,3 +341,10 @@ mouseScrollX = mapE fst . mouseScroll
 -- | Fires when user scrolls Y axis
 mouseScrollY :: MonadGLFW m => GameWire m a (Event Double)
 mouseScrollY = mapE snd . mouseScroll 
+
+-- | Fires when user hits close button of window 
+windowClosing :: MonadGLFW m => GameWire m a (Event ())
+windowClosing = liftGameMonad $ do 
+  f <- windowClosingM 
+  return $! if f then Event ()
+    else NoEvent 
