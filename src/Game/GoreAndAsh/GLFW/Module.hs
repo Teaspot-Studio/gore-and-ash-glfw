@@ -9,6 +9,7 @@ import Control.Monad.Fix
 import Control.Monad.IO.Class
 import Control.Monad.State.Strict 
 import Data.IORef
+import Data.Proxy 
 import Graphics.UI.GLFW
 import qualified Data.HashMap.Strict as M 
 
@@ -81,7 +82,7 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
       , glfwBufferSize = 100
       }
 
-  withModule _ = id
+  withModule _ = withModule (Proxy :: Proxy m)
   cleanupModule _ = return ()
   
 instance MonadTrans (GLFWInputT s) where
