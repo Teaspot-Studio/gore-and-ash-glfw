@@ -1,7 +1,18 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-|
+Module      : Game.GoreAndAsh.GLFW.API
+Description : Monadic and arrow API for GLFW core module
+Copyright   : (c) Anton Gushcha, 2015-2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+The module contains monadic and arrow API of the core module.
+-}
 module Game.GoreAndAsh.GLFW.API(
-    MonadGLFWInput(..)
-  -- | Keyboard API
+    MonadGLFW(..)
+  -- * Keyboard API
   , keyStatus
   , keyStatusDyn
   , keyPressed
@@ -12,14 +23,14 @@ module Game.GoreAndAsh.GLFW.API(
   , keyRepeatingDyn
   , keyPressing
   , keyPressingDyn
-  -- | Mouse buttons API
+  -- * Mouse buttons API
   , mouseButton
   , mouseButtonDyn
   , mouseButtonPressed
   , mouseButtonPressedDyn
   , mouseButtonReleased
   , mouseButtonReleasedDyn
-  -- | Cursor position
+  -- * Cursor position
   , mousePosition
   , mousePositionChange
   , mouseXChange
@@ -28,13 +39,13 @@ module Game.GoreAndAsh.GLFW.API(
   , mouseDeltaChange
   , mouseDeltaXChange
   , mouseDeltaYChange
-  -- | Mouse scroll
+  -- * Mouse scroll
   , mouseScroll
   , mouseScrollX
   , mouseScrollY
-  -- | Window API
+  -- * Window API
   , windowSize
-  -- | Reexports
+  -- * Reexports
   , Key(..)
   , KeyState(..)
   , MouseButton(..)
@@ -55,21 +66,7 @@ import Game.GoreAndAsh.GLFW.State
 import Game.GoreAndAsh.GLFW.Module 
 
 -- | Module low-level API
--- To use it as module you should add monad transformer @GLFWInputT@ to your stack
--- and define lifting instance, like that:
---
--- @@
--- type AppMonad = LoggingT (GLFWState ()) (GLFWInputT () Identity)
--- 
--- instance MonadGLFWInput AppMonad where
---   keyStatusM = lift . keyStatusM
---   mouseButtonM = lift . mouseButtonM
---   mousePosM = lift mousePosM
---   mouseScrollM = lift mouseScrollM
---   windowSizeM = lift windowSizeM
---   setCurrentWindowM = lift . setCurrentWindowM 
--- @@
-class Monad m => MonadGLFWInput m where 
+class Monad m => MonadGLFW m where 
   -- | Returns state of given keyboard's key
   keyStatusM :: Key -> m (Maybe (KeyState, ModifierKeys))
   -- | Returns state of given mouse button
@@ -85,33 +82,33 @@ class Monad m => MonadGLFWInput m where
   -- | Setup maximum size of inner buffers for keys, mouse buttons
   setBufferSizeM :: Int -> m ()
 
-instance {-# OVERLAPPING #-} Monad m => MonadGLFWInput (GLFWInputT s m) where 
+instance {-# OVERLAPPING #-} Monad m => MonadGLFW (GLFWT s m) where 
   keyStatusM k = do 
-    GLFWState{..} <- GLFWInputT get
+    GLFWState{..} <- GLFWT get
     return $ M.lookup k glfwKeys
 
   mouseButtonM b = do 
-    GLFWState{..} <- GLFWInputT get 
+    GLFWState{..} <- GLFWT get 
     return $ M.lookup b glfwMouseButtons
 
-  mousePosM = GLFWInputT $ glfwMousePos <$> get 
-  mouseScrollM = GLFWInputT $ glfwScroll <$> get 
-  windowSizeM = GLFWInputT $ glfwWindowSize <$> get 
+  mousePosM = GLFWT $ glfwMousePos <$> get 
+  mouseScrollM = GLFWT $ glfwScroll <$> get 
+  windowSizeM = GLFWT $ glfwWindowSize <$> get 
 
-  setCurrentWindowM w = GLFWInputT $ do 
+  setCurrentWindowM w = GLFWT $ do 
     s <- get 
     put $ s { 
         glfwWindow = w 
       , glfwPrevWindow = glfwWindow s 
       }
 
-  setBufferSizeM i = GLFWInputT $ do 
+  setBufferSizeM i = GLFWT $ do 
     s <- get 
     put $ s {
         glfwBufferSize = i 
       }
 
-instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFWInput m, MonadTrans mt) => MonadGLFWInput (mt m) where 
+instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFW m, MonadTrans mt) => MonadGLFW (mt m) where 
   keyStatusM = lift . keyStatusM
   mouseButtonM = lift . mouseButtonM
   mousePosM = lift mousePosM
@@ -121,11 +118,11 @@ instance {-# OVERLAPPABLE #-} (Monad (mt m), MonadGLFWInput m, MonadTrans mt) =>
   setBufferSizeM = lift . setBufferSizeM
   
 -- | Produces event when key state changes
-keyStatus :: MonadGLFWInput m => Key -> GameWire m a (Event (KeyState, ModifierKeys))
+keyStatus :: MonadGLFW m => Key -> GameWire m a (Event (KeyState, ModifierKeys))
 keyStatus k = liftGameMonad (maybe2Event <$> keyStatusM k)
 
 -- | Produces event when key state changes, get key as arrow argument
-keyStatusDyn :: MonadGLFWInput m => GameWire m Key (Event (KeyState, ModifierKeys))
+keyStatusDyn :: MonadGLFW m => GameWire m Key (Event (KeyState, ModifierKeys))
 keyStatusDyn = liftGameMonad1 $ \k -> do 
   ms <- keyStatusM k 
   return $ maybe2Event ms 
@@ -135,38 +132,38 @@ maybe2Event :: Maybe a -> Event a
 maybe2Event Nothing = NoEvent 
 maybe2Event (Just a) = Event a
 
-keyStated :: MonadGLFWInput m => KeyState -> Key -> GameWire m a (Event ModifierKeys)
+keyStated :: MonadGLFW m => KeyState -> Key -> GameWire m a (Event ModifierKeys)
 keyStated ks k = mapE snd . filterE (\(ks', _) -> ks' == ks) . keyStatus k
 
-keyStatedDyn :: MonadGLFWInput m => KeyState -> GameWire m Key (Event ModifierKeys)
+keyStatedDyn :: MonadGLFW m => KeyState -> GameWire m Key (Event ModifierKeys)
 keyStatedDyn ks = mapE snd . filterE (\(ks', _) -> ks' == ks) . keyStatusDyn
 
 -- | Fires when keyboard key is pressed
-keyPressed :: MonadGLFWInput m => Key -> GameWire m a (Event ModifierKeys)
+keyPressed :: MonadGLFW m => Key -> GameWire m a (Event ModifierKeys)
 keyPressed = keyStated KeyState'Pressed
 
 -- | Version of keyPressed that takes key at runtime
-keyPressedDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
+keyPressedDyn :: MonadGLFW m => GameWire m Key (Event ModifierKeys)
 keyPressedDyn = keyStatedDyn KeyState'Pressed
 
 -- | Fires when keyboard key is released
-keyReleased :: MonadGLFWInput m => Key -> GameWire m a (Event ModifierKeys)
+keyReleased :: MonadGLFW m => Key -> GameWire m a (Event ModifierKeys)
 keyReleased = keyStated KeyState'Released
 
 -- | Version of keyReleased that takes key at runtime
-keyReleasedDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
+keyReleasedDyn :: MonadGLFW m => GameWire m Key (Event ModifierKeys)
 keyReleasedDyn = keyStatedDyn KeyState'Released
 
 -- | Fires when keyboard key is entered into repeating mode
-keyRepeating :: MonadGLFWInput m => Key -> GameWire m a (Event ModifierKeys)
+keyRepeating :: MonadGLFW m => Key -> GameWire m a (Event ModifierKeys)
 keyRepeating = keyStated KeyState'Repeating
 
 -- | Version of keyRepeating that takes key at runtime
-keyRepeatingDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
+keyRepeatingDyn :: MonadGLFW m => GameWire m Key (Event ModifierKeys)
 keyRepeatingDyn = keyStatedDyn KeyState'Repeating
 
 -- | Fires event from moment of press until release of given key
-keyPressing :: MonadGLFWInput m => Key -> GameWire m a (Event ModifierKeys)
+keyPressing :: MonadGLFW m => Key -> GameWire m a (Event ModifierKeys)
 keyPressing k = go NoEvent 
   where
     go !e = mkGen $ \_ _ -> do 
@@ -179,7 +176,7 @@ keyPressing k = go NoEvent
           _ -> (Right e, go e)
 
 -- | Version of keyPressing that takes key at runtime
-keyPressingDyn :: MonadGLFWInput m => GameWire m Key (Event ModifierKeys)
+keyPressingDyn :: MonadGLFW m => GameWire m Key (Event ModifierKeys)
 keyPressingDyn = go NoEvent 
   where
     go !e = mkGen $ \_ k -> do 
@@ -192,43 +189,43 @@ keyPressingDyn = go NoEvent
           _ -> (Right e, go e)
 
 -- | Produces event when mouse button state changes
-mouseButton :: MonadGLFWInput m => MouseButton -> GameWire m a (Event (MouseButtonState, ModifierKeys))
+mouseButton :: MonadGLFW m => MouseButton -> GameWire m a (Event (MouseButtonState, ModifierKeys))
 mouseButton k = liftGameMonad (maybe2Event <$> mouseButtonM k)
 
 -- | Produces event when key state changes, get key as arrow argument
-mouseButtonDyn :: MonadGLFWInput m => GameWire m MouseButton (Event (MouseButtonState, ModifierKeys))
+mouseButtonDyn :: MonadGLFW m => GameWire m MouseButton (Event (MouseButtonState, ModifierKeys))
 mouseButtonDyn = liftGameMonad1 $ \k -> do 
   ms <- mouseButtonM k 
   return $ maybe2Event ms 
 
-mouseButtonStated :: MonadGLFWInput m => MouseButtonState -> MouseButton -> GameWire m a (Event ModifierKeys)
+mouseButtonStated :: MonadGLFW m => MouseButtonState -> MouseButton -> GameWire m a (Event ModifierKeys)
 mouseButtonStated bs b = mapE snd . filterE (\(bs', _) -> bs == bs') . mouseButton b
 
-mouseButtonStatedDyn :: MonadGLFWInput m => MouseButtonState -> GameWire m MouseButton (Event ModifierKeys)
+mouseButtonStatedDyn :: MonadGLFW m => MouseButtonState -> GameWire m MouseButton (Event ModifierKeys)
 mouseButtonStatedDyn bs = mapE snd . filterE (\(bs', _) -> bs == bs') . mouseButtonDyn
 
 -- | Fires when mouse button is pressed
-mouseButtonPressed :: MonadGLFWInput m => MouseButton -> GameWire m a (Event ModifierKeys)
+mouseButtonPressed :: MonadGLFW m => MouseButton -> GameWire m a (Event ModifierKeys)
 mouseButtonPressed = mouseButtonStated MouseButtonState'Pressed 
 
 -- | Version of mouseButtonPressed that takes button at runtime
-mouseButtonPressedDyn :: MonadGLFWInput m => GameWire m MouseButton (Event ModifierKeys)
+mouseButtonPressedDyn :: MonadGLFW m => GameWire m MouseButton (Event ModifierKeys)
 mouseButtonPressedDyn = mouseButtonStatedDyn MouseButtonState'Pressed
 
 -- | Fires when mouse button is released
-mouseButtonReleased :: MonadGLFWInput m => MouseButton -> GameWire m a (Event ModifierKeys)
+mouseButtonReleased :: MonadGLFW m => MouseButton -> GameWire m a (Event ModifierKeys)
 mouseButtonReleased = mouseButtonStated MouseButtonState'Released 
 
 -- | Version of mouseButtonReleased that takes button at runtime
-mouseButtonReleasedDyn :: MonadGLFWInput m => GameWire m MouseButton (Event ModifierKeys)
+mouseButtonReleasedDyn :: MonadGLFW m => GameWire m MouseButton (Event ModifierKeys)
 mouseButtonReleasedDyn = mouseButtonStatedDyn MouseButtonState'Released
 
 -- | Returns current position of mouse
-mousePosition :: MonadGLFWInput m => GameWire m a (Double, Double)
+mousePosition :: MonadGLFW m => GameWire m a (Double, Double)
 mousePosition = liftGameMonad mousePosM
 
 -- | Fires event when mouse position changes
-mousePositionChange :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mousePositionChange :: MonadGLFW m => GameWire m a (Event (Double, Double))
 mousePositionChange = go 0 0
   where
     go !x !y = mkGen $ \_ _-> do 
@@ -238,7 +235,7 @@ mousePositionChange = go 0 0
         else (Right NoEvent, go x y)
 
 -- | Fires event when mouse X axis changes
-mouseXChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseXChange :: MonadGLFW m => GameWire m a (Event Double)
 mouseXChange = go 0 
   where
     go !x = mkGen $ \_ _-> do 
@@ -248,7 +245,7 @@ mouseXChange = go 0
         else (Right NoEvent, go x)
 
 -- | Fires event when mouse Y axis changes
-mouseYChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseYChange :: MonadGLFW m => GameWire m a (Event Double)
 mouseYChange = go 0 
   where
     go !y = mkGen $ \_ _-> do 
@@ -258,7 +255,7 @@ mouseYChange = go 0
         else (Right NoEvent, go y)
 
 -- | Returns mouse delta moves
-mouseDelta :: MonadGLFWInput m => GameWire m a (Double, Double)
+mouseDelta :: MonadGLFW m => GameWire m a (Double, Double)
 mouseDelta = go 0 0
   where 
     go !x !y = mkGen $ \_ _ -> do 
@@ -269,7 +266,7 @@ mouseDelta = go 0 0
       return $ dx `seq` dy `seq` (res, go x' y')
 
 -- | Fires when mouse moves, holds delta move
-mouseDeltaChange :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mouseDeltaChange :: MonadGLFW m => GameWire m a (Event (Double, Double))
 mouseDeltaChange = go 0 0
   where 
     go !x !y = mkGen $ \_ _ -> do 
@@ -282,7 +279,7 @@ mouseDeltaChange = go 0 0
         else (Right NoEvent, go x y)
 
 -- | Fires when mouse X axis changes, holds delta move
-mouseDeltaXChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseDeltaXChange :: MonadGLFW m => GameWire m a (Event Double)
 mouseDeltaXChange = go 0 
   where 
     go !x = mkGen $ \_ _ -> do 
@@ -294,7 +291,7 @@ mouseDeltaXChange = go 0
         else (Right NoEvent, go x)
 
 -- | Fires when mouse Y axis changes, holds delta move
-mouseDeltaYChange :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseDeltaYChange :: MonadGLFW m => GameWire m a (Event Double)
 mouseDeltaYChange = go 0 
   where 
     go !y = mkGen $ \_ _ -> do 
@@ -306,7 +303,7 @@ mouseDeltaYChange = go 0
         else (Right NoEvent, go y)
 
 -- | Fires when windows size is changed
-windowSize :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+windowSize :: MonadGLFW m => GameWire m a (Event (Double, Double))
 windowSize = go 0 0 
   where
     go !x !y = mkGen $ \_ _ -> do 
@@ -318,7 +315,7 @@ windowSize = go 0 0
           else (Right NoEvent, go x y)
 
 -- | Fires when user scrolls
-mouseScroll :: MonadGLFWInput m => GameWire m a (Event (Double, Double))
+mouseScroll :: MonadGLFW m => GameWire m a (Event (Double, Double))
 mouseScroll = mkGen_ $ \_ -> do 
   ss <- mouseScrollM
   return . Right $! case ss of 
@@ -326,9 +323,9 @@ mouseScroll = mkGen_ $ \_ -> do
     ((!x', !y'):_) -> Event (x', y')
 
 -- | Fires when user scrolls X axis
-mouseScrollX :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseScrollX :: MonadGLFW m => GameWire m a (Event Double)
 mouseScrollX = mapE fst . mouseScroll
 
 -- | Fires when user scrolls Y axis
-mouseScrollY :: MonadGLFWInput m => GameWire m a (Event Double)
+mouseScrollY :: MonadGLFW m => GameWire m a (Event Double)
 mouseScrollY = mapE snd . mouseScroll 

@@ -1,4 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-|
+Module      : Game.GoreAndAsh.GLFW.State
+Description : Internal core module state
+Copyright   : (c) Anton Gushcha, 2015-2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+-}
 module Game.GoreAndAsh.GLFW.State(
     KeyChannel
   , ButtonChannel
@@ -27,8 +36,10 @@ type WindowSizeChannel = IORef (Maybe (Double, Double))
 type ScrollChannel = IORef [(Double, Double)]
 
 -- | Module inner state
+--
+-- [@s@] - State of next module, the states are chained via nesting.
 data GLFWState s = GLFWState {
-  glfwNextState :: !s 
+  glfwNextState :: !s
 , glfwKeys :: !(M.HashMap Key (KeyState, ModifierKeys))
 , glfwKeyChannel :: !KeyChannel
 , glfwMouseButtons :: !(M.HashMap MouseButton (MouseButtonState, ModifierKeys))

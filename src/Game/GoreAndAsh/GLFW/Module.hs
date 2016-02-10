@@ -1,6 +1,18 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-|
+Module      : Game.GoreAndAsh.GLFW.Module
+Description : Monad transformer of the module
+Copyright   : (c) Anton Gushcha, 2015-2016
+License     : BSD3
+Maintainer  : ncrashed@gmail.com
+Stability   : experimental
+Portability : POSIX
+
+The module contains declaration of monad transformer of the core module and
+instance for 'GameModule' class.
+-}
 module Game.GoreAndAsh.GLFW.Module(
-    GLFWInputT(..)
+    GLFWT(..)
   ) where
 
 import Control.Monad.Catch
@@ -17,13 +29,30 @@ import Game.GoreAndAsh
 import Game.GoreAndAsh.GLFW.State
 
 -- | Monad transformer that handles GLFW specific API
-newtype GLFWInputT s m a = GLFWInputT { runGLFWInputT :: StateT (GLFWState s) m a }
+--
+-- [@s@] - State of next core module in modules chain;
+--
+-- [@m@] - Next monad in modules monad stack;
+--
+-- [@a@] - Type of result value;
+--
+-- How to embed module:
+-- 
+-- @
+-- type AppStack = ModuleStack [GLFWT, ... other modules ... ] IO
+--
+-- newtype AppMonad a = AppMonad (AppStack a)
+--   deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadThrow, MonadCatch, MonadSDL)
+-- @
+--
+-- The module is NOT pure within first phase (see 'ModuleStack' docs), therefore currently only 'IO' end monad can handler the module.
+newtype GLFWT s m a = GLFWT { runGLFWT :: StateT (GLFWState s) m a }
   deriving (Functor, Applicative, Monad, MonadState (GLFWState s), MonadFix, MonadThrow, MonadCatch, MonadMask)
 
-instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where 
-  type ModuleState (GLFWInputT s m) = GLFWState s
+instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where 
+  type ModuleState (GLFWT s m) = GLFWState s
   
-  runModule (GLFWInputT m) s = do
+  runModule (GLFWT m) s = do
     ((a, s'@GLFWState{..}), nextState) <- runModule (runStateT m s) (glfwNextState s)
     bindWindow glfwPrevWindow glfwWindow glfwKeyChannel glfwMouseButtonChannel 
       glfwMousePosChannel glfwWindowSizeChannel glfwScrollChannel
@@ -85,11 +114,11 @@ instance GameModule m s => GameModule (GLFWInputT s m) (GLFWState s) where
   withModule _ = withModule (Proxy :: Proxy m)
   cleanupModule _ = return ()
   
-instance MonadTrans (GLFWInputT s) where
-  lift = GLFWInputT . lift 
+instance MonadTrans (GLFWT s) where
+  lift = GLFWT . lift 
 
-instance MonadIO m => MonadIO (GLFWInputT s m) where 
-  liftIO = GLFWInputT . liftIO 
+instance MonadIO m => MonadIO (GLFWT s m) where 
+  liftIO = GLFWT . liftIO 
 
 -- | Updates handlers when current window changes
 bindWindow :: MonadIO m => Maybe Window -> Maybe Window 
