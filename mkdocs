@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+git clone https://github.com/Kitware/CMake.git 
+cd CMake 
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr . && make && make install 
+cd .. 
+
+git clone https://github.com/glfw/glfw.git
+cd glfw
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr . && make && make install
+cd ..
+
 cabal update && cabal install --dependencies-only
 cabal configure && cabal build && cabal haddock --hyperlink-source \
                                     --html-location='/package/$pkg-$version/docs' \

@@ -1,7 +1,7 @@
 FROM phadej/ghc:7.10.2 
 
 RUN apt-get update
-RUN apt-get install -y libglfw3-dev
+RUN apt-get install -y build-essential xorg-dev libgl1-mesa-dev cmake git
 
 ADD mkdocs /opt/project/
 ADD LICENSE /opt/project/
