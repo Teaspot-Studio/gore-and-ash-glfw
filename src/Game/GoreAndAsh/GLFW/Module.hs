@@ -77,11 +77,11 @@ instance GameModule m s => GameModule (GLFWT s m) (GLFWState s) where
     where 
       readAllKeys GLFWState{..} = liftIO $ do
         keys <- readAllChan glfwBufferSize glfwKeyChannel
-        return $ M.fromList $ (\(k, ks, mds) -> (k, (ks, mds))) <$> keys
+        return $ M.fromList $ (\(k, ks, mds) -> (k, (ks, mds))) <$> reverse keys
 
       readAllButtons GLFWState{..} = liftIO $ do 
         btns <- readAllChan glfwBufferSize glfwMouseButtonChannel
-        return $ M.fromList $ (\(b, bs, mds) -> (b, (bs, mds))) <$> btns 
+        return $ M.fromList $ (\(b, bs, mds) -> (b, (bs, mds))) <$> reverse btns 
 
       readMousePos GLFWState{..} = liftIO $
         readIORef glfwMousePosChannel

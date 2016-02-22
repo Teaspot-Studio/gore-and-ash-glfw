@@ -92,6 +92,9 @@ module Game.GoreAndAsh.GLFW(
   , ModifierKeys(..)
   ) where
 
+import Control.Monad.Catch 
+import Control.Wire 
+import Game.GoreAndAsh
 import Graphics.UI.GLFW
 
 import Game.GoreAndAsh.GLFW.API 
