@@ -1,7 +1,7 @@
-FROM phadej/ghc:7.10.2 
+FROM haskell:8.0.1
 
 RUN apt-get update
-RUN apt-get install -y build-essential xorg-dev libgl1-mesa-dev cmake git
+RUN apt-get install -y curl build-essential xorg-dev libgl1-mesa-dev cmake git
 
 ADD mkdocs /opt/project/
 ADD LICENSE /opt/project/
@@ -13,4 +13,4 @@ ADD src /opt/project/src
 
 WORKDIR /opt/project
 
-ENTRYPOINT ["./mkdocs", "gore-and-ash-glfw", "1.1.1.0", "NCrashed"]
+ENTRYPOINT ["./mkdocs", "gore-and-ash-glfw", "1.1.2.0", "NCrashed"]
